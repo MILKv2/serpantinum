@@ -49,6 +49,7 @@ Rectangle {
         cursorShape: Qt.PointingHandCursor
         onClicked: {
             if (Caching.serpantinumDir) {
+                MorphController.capture(bgRect, "calendar", bgRect.radius, barWindow);
                 Quickshell.execDetached(["bash", Caching.serpantinumDir + "/scripts/qs_manager.sh", "toggle", "calendar"]);
             }
         }

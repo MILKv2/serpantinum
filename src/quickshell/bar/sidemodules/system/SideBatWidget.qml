@@ -221,7 +221,10 @@ Rectangle {
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
-            onClicked: Quickshell.execDetached(["bash", "-c", Caching.serpantinumDir + "/scripts/qs_manager.sh toggle system"])
+            onClicked: {
+                MorphController.capture(batBtn, "system", batBtn.radius, barWindow);
+                Quickshell.execDetached(["bash", "-c", Caching.serpantinumDir + "/scripts/qs_manager.sh toggle system"]);
+            }
         }
     }
 }

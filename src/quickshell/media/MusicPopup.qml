@@ -25,6 +25,16 @@ Item {
         return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
     }
 
+    // set by Main when the popup grows out of its bar pill: the container
+    // transform already carries the whole card in, so the popup only has to
+    // stagger its contents once the shape has settled
+    property bool morphIntro: false
+
+    // the container transform ends on this popup's gradient ring, so the
+    // morphing frame has to be as thick and as tinted as it is
+    property real morphFrameWidth: root.s(3)
+    property color morphFrameColor: root.bc2
+
     function resetAndPlayIntro() {
         introMain = 0;
         introCover = 0;
@@ -35,8 +45,29 @@ Item {
         introEqSliders = 0;
         introPresets = 0;
         maskRectOuter.drawProgress = 0;
-        introAnim.restart();
-        chargeAnim.restart();
+
+        if (root.morphIntro) {
+            introDelayTimer.restart();
+        } else {
+            introDelayTimer.stop();
+            introAnim.restart();
+            chargeAnim.restart();
+        }
+    }
+
+    // the stack keeps this item alive between opens, so Main asks for the
+    // intro explicitly instead of relying on visibility changes
+    function replayIntro() {
+        resetAndPlayIntro();
+    }
+
+    Timer {
+        id: introDelayTimer
+        interval: 120
+        onTriggered: {
+            introAnim.restart();
+            chargeAnim.restart();
+        }
     }
 
     onVisibleChanged: {
@@ -462,9 +493,9 @@ Item {
         id: mainWrapper
         anchors.fill: parent
         
-        scale: 0.92 + (0.08 * root.introMain)
-        opacity: root.introMain
-        transform: Translate { y: root.s(12) * (1 - root.introMain) }
+        scale: root.morphIntro ? 1.0 : (0.92 + (0.08 * root.introMain))
+        opacity: root.morphIntro ? 1.0 : root.introMain
+        transform: Translate { y: root.morphIntro ? 0 : root.s(12) * (1 - root.introMain) }
 
         Item {
             anchors.fill: parent
