@@ -81,7 +81,10 @@ Rectangle {
             }
             Behavior on opacity { NumberAnimation { duration: 450; easing.type: Easing.OutCubic } }
 
-            onClicked: Quickshell.execDetached(["bash", "-c", Caching.serpantinumDir + "/scripts/qs_manager.sh toggle guide"])
+            onClicked: {
+                MorphController.capture(helpButton, "guide", helpButton.cornerRadius, barWindow);
+                Quickshell.execDetached(["bash", "-c", Caching.serpantinumDir + "/scripts/qs_manager.sh toggle guide"]);
+            }
         }
     }
 }

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Window
 import QtQuick.Controls
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -200,17 +201,26 @@ PanelWindow {
     WlrLayershell.layer: WlrLayer.Overlay
 
     exclusionMode: ExclusionMode.Ignore
-    focusable: true
+    // keyboard focus is on demand, so a click is what would hand it over - and
+    // while prewarming or closing nothing can be clicked anyway
+    focusable: masterWindow.isVisible || masterWindow.prewarming
 
     implicitWidth: masterWindow.screen ? masterWindow.screen.width : 0
     implicitHeight: masterWindow.screen ? masterWindow.screen.height : 0
 
-    visible: isVisible
+    // stays mapped while prewarming and while the closing morph plays out
+    visible: isVisible || morphClosing || prewarming
 
-    mask: Region {
-        item: masterWindow.isCurrentDraggable ? animContainer : topBarHole
-        intersection: masterWindow.isCurrentDraggable ? Intersection.Combine : Intersection.Xor
-    }
+    Region { id: barHoleRegion; item: topBarHole; intersection: Intersection.Xor }
+    // draggable widgets need their own surface on top of the bar hole
+    Region { id: draggableRegion; item: animContainer; intersection: Intersection.Combine }
+    // 1x1 dummy: everything is click-through while the surface is up but the
+    // widget is not (prewarming, or collapsing back into its pill)
+    Region { id: passthroughRegion; width: 1; height: 1 }
+
+    mask: (masterWindow.morphClosing || !masterWindow.isVisible)
+        ? passthroughRegion
+        : (masterWindow.isCurrentDraggable ? draggableRegion : barHoleRegion)
 
     property var rawBarSettings: (typeof Config !== "undefined" && Config.rawSettings && Config.rawSettings.bar) ? Config.rawSettings.bar : ({})
     property string barPosition: (rawBarSettings && rawBarSettings.position !== undefined) ? rawBarSettings.position : "top"
@@ -414,6 +424,347 @@ PanelWindow {
 
     property real globalUiScale: 1.0
 
+    // ---------------------------------------------------------------------
+    // container transform
+    //
+    // When a dash widget is opened from a bar module, the panel does not fade
+    // in place: a plate is drawn at the source pill's geometry and morphed
+    // (position, size, corner radius) into the panel's bounds while the panel
+    // content is masked to that plate and cross-faded in. Closing plays the
+    // same thing backwards, so the panel collapses back into its pill.
+    // ---------------------------------------------------------------------
+
+    // {x, y, w, h, radius} of the source pill in screen coordinates, or null
+    property var morphOrigin: null
+    // 0 = fully collapsed onto the source pill, 1 = panel bounds
+    property real morphT: 1.0
+    // panel content cross-fade, 0 = invisible
+    property real contentReveal: 0.0
+    // true while a morph is in flight (mask + plate are only paid for then)
+    property bool morphRunning: false
+    // true from the moment a close starts until the window may be unmapped
+    property bool morphClosing: false
+
+    property int morphOpenDuration:  MorphController.openDuration
+    property int morphCloseDuration: MorphController.closeDuration
+    property int fadeOpenDuration:   180
+
+    property int _openDuration: morphOpenDuration
+    property int _closeDuration: morphCloseDuration
+
+    // surface is up and the panel has been rendered once, but nothing is shown
+    property bool prewarming: false
+
+    Connections {
+        target: (typeof MorphController !== "undefined") ? MorphController : null
+        function onPrewarm(widget) { masterWindow.prewarmWidget(widget); }
+    }
+
+    // Runs on the click, not on the command that follows it. Only ever from a
+    // closed dash: with a widget already open there is no surface to map, and
+    // swapping the stack under it would skip the switch animation.
+    function prewarmWidget(name) {
+        if (!name || name === "hidden") return;
+        if (masterWindow.isVisible || masterWindow.currentActive !== "hidden") return;
+        if (!MorphController.enabled) return;
+
+        let targetScreen = resolveTargetScreen();
+        if (targetScreen && masterWindow.screen !== targetScreen) masterWindow.screen = targetScreen;
+
+        let t = getLayout(name);
+        if (!t || !t.w || !t.h || t.w < 10 || t.h < 10) return;
+
+        let item = ensureWidgetItem(name, t);
+        if (!item) return;
+
+        let origin = masterWindow._morphOriginFor(name);
+        if (!origin) return;
+
+        if (item.targetMasterWidth !== undefined) item.targetMasterWidth = t.w;
+        if (item.targetMasterHeight !== undefined) item.targetMasterHeight = t.h;
+        if (item.morphIntro !== undefined) item.morphIntro = true;
+
+        let w = (typeof item.targetMasterWidth === "number" && item.targetMasterWidth >= 50) ? item.targetMasterWidth : t.w;
+        let h = (typeof item.targetMasterHeight === "number" && item.targetMasterHeight >= 50) ? item.targetMasterHeight : t.h;
+
+        masterWindow.disableMorph = true;
+        masterWindow._animX = (w !== t.w) ? recenterX(t, w) : t.rx;
+        masterWindow._animY = t.ry;
+        masterWindow._animW = w;
+        masterWindow._animH = h;
+        masterWindow._stageW = w;
+        masterWindow._stageH = h;
+
+        if (widgetStack.currentItem !== item) widgetStack.replace(item, {}, StackView.Immediate);
+
+        masterWindow.morphOrigin = origin;
+        masterWindow._applyOriginFrame(origin);
+        masterWindow.morphT = 0.0;
+        masterWindow.frameReveal = 0.0;
+        masterWindow.morphRunning = true;
+        // invisible, but enough to make the scene graph actually render the
+        // panel into the mask layer instead of skipping it
+        masterWindow.contentReveal = 0.01;
+        masterWindow.prewarming = true;
+        prewarmTimeout.restart();
+    }
+
+    function cancelPrewarm() {
+        prewarmTimeout.stop();
+        if (!masterWindow.prewarming) return;
+        masterWindow.prewarming = false;
+        if (!masterWindow.isVisible && !masterWindow.morphClosing) {
+            masterWindow.morphRunning = false;
+            masterWindow.morphOrigin = null;
+            masterWindow.contentReveal = 0.0;
+        }
+    }
+
+    // the toggle never arrived (the click closed something else, qs_manager
+    // failed, ...) - drop the surface again
+    Timer {
+        id: prewarmTimeout
+        interval: 900
+        onTriggered: masterWindow.cancelPrewarm()
+    }
+
+    // frame the morphing container ends on. Panels are 1px surface0 cards by
+    // default and can say otherwise (MusicPopup's ring is thicker and tinted)
+    readonly property var _panelItem: widgetStack.currentItem
+    readonly property real panelFrameWidth: (_panelItem && _panelItem.morphFrameWidth !== undefined) ? _panelItem.morphFrameWidth : 1
+    readonly property color panelFrameColor: (_panelItem && _panelItem.morphFrameColor !== undefined) ? _panelItem.morphFrameColor : ThemeBackend.surface0
+    readonly property real panelRadius: (_panelItem && _panelItem.morphCornerRadius !== undefined) ? _panelItem.morphCornerRadius : ThemeBackend.borderRadius
+
+    // frame the container starts from, i.e. the bar pill's own border
+    property real originFrameWidth: 0
+    property color originFrameColor: "transparent"
+
+    readonly property bool morphMasking: morphRunning && morphOrigin !== null
+    readonly property var _morphRect: morphRunning ? morphOrigin : null
+    readonly property real _morphT: morphRunning ? morphT : 1.0
+
+    // plate geometry, in animContainer coordinates
+    readonly property real plateX: _morphRect ? (_morphRect.x - animContainer.x) * (1.0 - _morphT) : 0
+    readonly property real plateY: _morphRect ? (_morphRect.y - animContainer.y) * (1.0 - _morphT) : 0
+    readonly property real plateW: _morphRect ? _morphRect.w + (animContainer.width  - _morphRect.w) * _morphT : animContainer.width
+    readonly property real plateH: _morphRect ? _morphRect.h + (animContainer.height - _morphRect.h) * _morphT : animContainer.height
+    readonly property real plateRadius: _morphRect ? _morphRect.radius + (panelRadius - _morphRect.radius) * _morphT : panelRadius
+    // hides the hand-off frame where the real bar pill is still underneath
+    readonly property real plateOpacity: _morphRect ? Math.min(1.0, _morphT * 9.0) : 0.0
+
+    // The frame is drawn over the panel, so the container always has a crisp
+    // edge: it covers the seam where the mask cuts the panel, and it takes the
+    // destination's look early (twice the shape's rate) so the box reads as the
+    // card it is turning into rather than a bare slab.
+    readonly property real _frameT: Math.min(1.0, _morphT * 2.0)
+    readonly property real frameWidth: _morphRect ? (originFrameWidth + (panelFrameWidth - originFrameWidth) * _frameT) : panelFrameWidth
+    readonly property color frameColor: _morphRect ? Qt.rgba(
+            originFrameColor.r + (panelFrameColor.r - originFrameColor.r) * _frameT,
+            originFrameColor.g + (panelFrameColor.g - originFrameColor.g) * _frameT,
+            originFrameColor.b + (panelFrameColor.b - originFrameColor.b) * _frameT,
+            originFrameColor.a + (panelFrameColor.a - originFrameColor.a) * _frameT
+        ) : panelFrameColor
+    // Driven on its own timeline rather than off the shape's progress: the
+    // shape curve is front loaded, so anything keyed to it would snap in on
+    // the first frame. The border instead blooms in and dissolves out over
+    // real time - out of the pill's edge at the start, into the panel's own
+    // border (which by then sits exactly underneath) at the end.
+    property real frameReveal: 0.0
+    readonly property real frameOpacity: _morphRect ? frameReveal : 0.0
+
+    function _applyOriginFrame(origin) {
+        if (!origin) {
+            masterWindow.originFrameWidth = 0;
+            return;
+        }
+        masterWindow.originFrameWidth = origin.borderWidth || 0;
+        // a pill without a frame has no meaningful border colour to start from
+        masterWindow.originFrameColor = (origin.borderWidth > 0 && origin.borderColor)
+            ? origin.borderColor
+            : masterWindow.panelFrameColor;
+    }
+
+    function _morphOriginFor(widgetName) {
+        if (widgetName === "" || widgetName === "hidden") return null;
+        let scr = masterWindow.screen;
+        let origin = MorphController.originFor(widgetName, scr);
+        if (!origin) return null;
+        // ignore nonsense (bar off screen, stale geometry, ...)
+        if (origin.w < 8 || origin.h < 8) return null;
+        if (origin.x < -origin.w || origin.y < -origin.h) return null;
+        if (origin.x > masterWindow.width || origin.y > masterWindow.height) return null;
+        return origin;
+    }
+
+    function startOpenAnimation(origin) {
+        openWarmup.running = false;
+        morphCloseAnim.stop();
+        morphOpenAnim.stop();
+
+        masterWindow.morphClosing = false;
+        masterWindow.morphOrigin = origin;
+        masterWindow._applyOriginFrame(origin);
+
+        if (origin) {
+            if (!masterWindow.morphRunning) {
+                masterWindow.morphT = 0.0;
+                masterWindow.frameReveal = 0.0;
+            }
+            masterWindow.morphRunning = true;
+            masterWindow._openDuration = Math.max(140, Math.round(masterWindow.morphOpenDuration * (1.0 - masterWindow.morphT)));
+        } else {
+            masterWindow.morphRunning = false;
+            masterWindow.morphT = 1.0;
+            masterWindow._openDuration = masterWindow.fadeOpenDuration;
+        }
+
+        // Opening maps the layer surface and renders the panel for the first
+        // time, which costs ~50 ms and used to be spent mid-motion, so the
+        // first two frames of every open were dropped. Nothing is on screen
+        // yet at this point (plate and content are still fully transparent),
+        // so the animation just waits for the frame rate to settle first. The
+        // sliver of content opacity is what forces that first render to
+        // actually happen instead of being skipped.
+        masterWindow.contentReveal = 0.01;
+        openWarmup.restart();
+    }
+
+    FrameAnimation {
+        id: openWarmup
+        running: false
+        property int waited: 0
+
+        onRunningChanged: if (running) waited = 0
+
+        onTriggered: {
+            waited++;
+            if (frameTime < 0.020 || waited >= 4) {
+                running = false;
+                morphOpenAnim.restart();
+            }
+        }
+    }
+
+    function startCloseAnimation(origin) {
+        openWarmup.running = false;
+        morphOpenAnim.stop();
+        morphCloseAnim.stop();
+
+        // nothing to collapse into: the window is dropped on the spot, exactly
+        // as it was before there was a morph at all
+        if (!origin) {
+            masterWindow.morphRunning = false;
+            masterWindow.morphClosing = false;
+            masterWindow.morphOrigin = null;
+            masterWindow.contentReveal = 0.0;
+            return;
+        }
+
+        masterWindow.morphClosing = true;
+        masterWindow.morphOrigin = origin;
+        masterWindow._applyOriginFrame(origin);
+        masterWindow.morphRunning = true;
+        masterWindow.frameReveal = 1.0;
+        masterWindow._closeDuration = Math.max(140, Math.round(masterWindow.morphCloseDuration * masterWindow.morphT));
+
+        morphCloseAnim.restart();
+    }
+
+    SequentialAnimation {
+        id: morphOpenAnim
+
+        ParallelAnimation {
+            NumberAnimation {
+                target: masterWindow
+                property: "morphT"
+                to: 1.0
+                duration: masterWindow._openDuration
+                // material "emphasized decelerate": the box shoots out and settles
+                easing.type: Easing.Bezier
+                easing.bezierCurve: [0.1, 0.8, 0.2, 1.0, 1.0, 1.0]
+            }
+            SequentialAnimation {
+                PauseAnimation {
+                    duration: masterWindow.morphRunning ? Math.round(masterWindow._openDuration * 0.24) : 0
+                }
+                NumberAnimation {
+                    target: masterWindow
+                    property: "contentReveal"
+                    to: 1.0
+                    duration: masterWindow.morphRunning ? Math.round(masterWindow._openDuration * 0.62) : masterWindow._openDuration
+                    easing.type: Easing.OutCubic
+                }
+            }
+
+            SequentialAnimation {
+                NumberAnimation {
+                    target: masterWindow
+                    property: "frameReveal"
+                    to: 1.0
+                    duration: Math.round(masterWindow._openDuration * 0.40)
+                    easing.type: Easing.OutCubic
+                }
+                PauseAnimation { duration: Math.round(masterWindow._openDuration * 0.28) }
+                NumberAnimation {
+                    target: masterWindow
+                    property: "frameReveal"
+                    to: 0.0
+                    duration: Math.round(masterWindow._openDuration * 0.32)
+                    easing.type: Easing.InOutSine
+                }
+            }
+        }
+
+        ScriptAction {
+            script: {
+                masterWindow.morphRunning = false;
+                masterWindow.morphOrigin = null;
+            }
+        }
+    }
+
+    SequentialAnimation {
+        id: morphCloseAnim
+
+        ParallelAnimation {
+            NumberAnimation {
+                target: masterWindow
+                property: "morphT"
+                to: 0.0
+                duration: masterWindow._closeDuration
+                easing.type: Easing.Bezier
+                easing.bezierCurve: [0.3, 0.0, 0.7, 0.2, 1.0, 1.0]
+            }
+            NumberAnimation {
+                target: masterWindow
+                property: "contentReveal"
+                to: 0.0
+                duration: Math.round(masterWindow._closeDuration * 0.55)
+                easing.type: Easing.InCubic
+            }
+
+            SequentialAnimation {
+                PauseAnimation { duration: Math.round(masterWindow._closeDuration * 0.45) }
+                NumberAnimation {
+                    target: masterWindow
+                    property: "frameReveal"
+                    to: 0.0
+                    duration: Math.round(masterWindow._closeDuration * 0.55)
+                    easing.type: Easing.InOutSine
+                }
+            }
+        }
+
+        ScriptAction {
+            script: {
+                masterWindow.morphRunning = false;
+                masterWindow.morphOrigin = null;
+                masterWindow.morphClosing = false;
+                if (masterWindow.currentActive === "hidden") masterWindow.isVisible = false;
+            }
+        }
+    }
+
     Notifs.NotificationPopups {
         id: osdPopups
     }
@@ -571,7 +922,37 @@ PanelWindow {
         y: masterWindow._animY
         width: masterWindow._animW
         height: masterWindow._animH
-        clip: true
+
+        // the morphing container itself: sits under the panel and carries the
+        // shape from the bar pill to the panel bounds
+        Rectangle {
+            id: morphPlate
+            x: masterWindow.plateX
+            y: masterWindow.plateY
+            width: masterWindow.plateW
+            height: masterWindow.plateH
+            radius: masterWindow.plateRadius
+            color: ThemeBackend.base
+            opacity: masterWindow.plateOpacity
+            visible: masterWindow.morphMasking
+        }
+
+        // mask used to keep the panel inside the morphing container
+        Item {
+            id: morphMaskSource
+            anchors.fill: parent
+            visible: false
+            layer.enabled: masterWindow.morphMasking
+
+            Rectangle {
+                x: masterWindow.plateX
+                y: masterWindow.plateY
+                width: masterWindow.plateW
+                height: masterWindow.plateH
+                radius: masterWindow.plateRadius
+                color: "black"
+            }
+        }
 
         DragHandler {
             id: windowDragHandler
@@ -602,52 +983,75 @@ PanelWindow {
         }
 
         Item {
-            id: contentStage
-            width: masterWindow._stageW
-            height: masterWindow._stageH
-            x: (animContainer.width - width) / 2
-            y: (animContainer.height - height) / 2
-            transformOrigin: Item.Center
+            id: stageHost
+            anchors.fill: parent
+            clip: true
 
-            scale: masterWindow.isVisible ? 1.0 : 0.96
-            Behavior on scale {
-                NumberAnimation {
-                    duration: masterWindow.isVisible ? 280 : 160
-                    easing.type: masterWindow.isVisible ? Easing.OutCubic : Easing.InCubic
-                }
+            layer.enabled: masterWindow.morphMasking
+            layer.effect: MultiEffect {
+                maskEnabled: true
+                maskSource: morphMaskSource
             }
 
-            opacity: masterWindow.isVisible ? 1.0 : 0.0
-            Behavior on opacity {
-                NumberAnimation {
-                    duration: masterWindow.isVisible ? 200 : 140
-                    easing.type: Easing.OutCubic
+            Item {
+                id: contentStage
+                width: masterWindow._stageW
+                height: masterWindow._stageH
+                // during a morph the panel drifts out of the pill instead of
+                // being pinned to its final spot
+                x: (animContainer.width - width) / 2
+                    + (masterWindow._morphRect
+                        ? (masterWindow.plateX + masterWindow.plateW / 2 - animContainer.width / 2) * (1.0 - masterWindow._morphT) * 0.55
+                        : 0)
+                y: (animContainer.height - height) / 2
+                    + (masterWindow._morphRect
+                        ? (masterWindow.plateY + masterWindow.plateH / 2 - animContainer.height / 2) * (1.0 - masterWindow._morphT) * 0.55
+                        : 0)
+                transformOrigin: Item.Center
+
+                scale: 0.96 + 0.04 * masterWindow.contentReveal
+                opacity: masterWindow.contentReveal
+
+                MouseArea { anchors.fill: parent }
+
+                StackView {
+                    id: widgetStack
+                    anchors.fill: parent
+                    focus: true
+
+                    replaceEnter: null
+                    replaceExit: null
+                    pushEnter: null
+                    pushExit: null
+                    popEnter: null
+                    popExit: null
+
+                    Keys.onEscapePressed: (event) => {
+                        switchWidget("hidden", "");
+                        event.accepted = true;
+                    }
+
+                    onCurrentItemChanged: {
+                        if (currentItem) currentItem.forceActiveFocus();
+                    }
                 }
             }
+        }
 
-            MouseArea { anchors.fill: parent }
-
-            StackView {
-                id: widgetStack
-                anchors.fill: parent
-                focus: true
-
-                replaceEnter: null
-                replaceExit: null
-                pushEnter: null
-                pushExit: null
-                popEnter: null
-                popExit: null
-
-                Keys.onEscapePressed: (event) => {
-                    switchWidget("hidden", "");
-                    event.accepted = true;
-                }
-
-                onCurrentItemChanged: {
-                    if (currentItem) currentItem.forceActiveFocus();
-                }
-            }
+        // drawn over the panel: the container's edge during the whole morph
+        Rectangle {
+            id: morphFrame
+            x: masterWindow.plateX
+            y: masterWindow.plateY
+            width: masterWindow.plateW
+            height: masterWindow.plateH
+            radius: masterWindow.plateRadius
+            color: "transparent"
+            antialiasing: true
+            border.width: masterWindow.frameWidth
+            border.color: masterWindow.frameColor
+            opacity: masterWindow.frameOpacity
+            visible: masterWindow.morphMasking && masterWindow.frameWidth > 0 && opacity > 0
         }
 
         Behavior on x {
@@ -682,10 +1086,19 @@ PanelWindow {
         }
 
         if (newWidget === "hidden") {
+            masterWindow.cancelPrewarm();
+
             if (currentActive !== "hidden") {
+                let closingWidget = masterWindow.currentActive;
+                let origin = masterWindow._morphOriginFor(closingWidget) || masterWindow.morphOrigin;
+
                 masterWindow.currentActive = "hidden";
                 masterWindow.morphDuration = masterWindow.exitDuration;
                 masterWindow.disableMorph = true;
+
+                // must come first: it raises morphClosing, which is what keeps
+                // the window mapped once isVisible drops
+                masterWindow.startCloseAnimation(origin);
                 masterWindow.isVisible = false;
 
                 delayedClear.scheduledGeneration = gen;
@@ -764,11 +1177,25 @@ PanelWindow {
         if (arg !== "" && cachedItem.activeMode !== undefined) cachedItem.activeMode = arg;
         if (arg !== "" && cachedItem.gotoTab !== undefined) cachedItem.gotoTab(arg);
 
+        let openOrigin = isComingFromHidden ? masterWindow._morphOriginFor(newWidget) : null;
+        if (isComingFromHidden && cachedItem.morphIntro !== undefined) {
+            cachedItem.morphIntro = (openOrigin !== null);
+        }
+
         if (widgetStack.currentItem !== cachedItem) {
             widgetStack.replace(cachedItem, {}, StackView.Immediate);
         }
 
         masterWindow.isVisible = true;
+        prewarmTimeout.stop();
+        masterWindow.prewarming = false;
+
+        if (isComingFromHidden) {
+            masterWindow.startOpenAnimation(openOrigin);
+            // the stack keeps the item alive between opens, so the widget's own
+            // intro has to be asked for explicitly
+            if (typeof cachedItem.replayIntro === "function") cachedItem.replayIntro();
+        }
 
         if (isComingFromHidden) {
             Qt.callLater(function() {
