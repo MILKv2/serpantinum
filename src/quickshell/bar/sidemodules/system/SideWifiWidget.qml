@@ -274,6 +274,9 @@ Rectangle {
         accentColor: sideWifiRoot.isActive ? (sideWifiRoot.isCompact ? Qt.lighter(ThemeBackend.blue, 1.08) : ThemeBackend.blue) : (sideWifiRoot.isCompact ? Qt.lighter(ThemeBackend.surface0, 1.18) : ThemeBackend.surface0)
         textColor: sideWifiRoot.isActive ? ThemeBackend.base : (sideWifiRoot.isCompact ? Qt.lighter(ThemeBackend.text, 1.05) : ThemeBackend.text)
         iconOffsetX: sideWifiRoot.showEthernet ? 0 : -3
-        onClicked: Quickshell.execDetached(["bash", "-c", Caching.serpantinumDir + "/scripts/qs_manager.sh toggle network wifi"])
+        onClicked: {
+            MorphController.capture(wifiBtn, "network", wifiBtn.cornerRadius, barWindow);
+            Quickshell.execDetached(["bash", "-c", Caching.serpantinumDir + "/scripts/qs_manager.sh toggle network wifi"]);
+        }
     }
 }

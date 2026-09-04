@@ -65,6 +65,9 @@ Rectangle {
         iconFontSize: barWindow ? barWindow.s(sideVolRoot.isCompact ? 14 : 15) : (sideVolRoot.isCompact ? 14 : 15)
         accentColor: sideVolRoot.isSoundActive ? (sideVolRoot.isCompact ? Qt.lighter(ThemeBackend.mauve, 1.08) : ThemeBackend.mauve) : (sideVolRoot.isCompact ? Qt.lighter(ThemeBackend.surface1, 1.12) : ThemeBackend.surface1)
         textColor: sideVolRoot.isSoundActive ? ThemeBackend.base : (sideVolRoot.isCompact ? ThemeBackend.text : ThemeBackend.subtext0)
-        onClicked: Quickshell.execDetached(["bash", "-c", Caching.serpantinumDir + "/scripts/qs_manager.sh toggle volume"])
+        onClicked: {
+            MorphController.capture(volBtn, "volume", volBtn.cornerRadius, barWindow);
+            Quickshell.execDetached(["bash", "-c", Caching.serpantinumDir + "/scripts/qs_manager.sh toggle volume"]);
+        }
     }
 }

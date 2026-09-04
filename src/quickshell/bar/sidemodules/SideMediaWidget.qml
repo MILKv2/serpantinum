@@ -197,6 +197,7 @@ Rectangle {
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     if (Caching.serpantinumDir) {
+                        MorphController.capture(bgRect, "music", bgRect.radius, barWindow);
                         Quickshell.execDetached(["bash", "-c", Caching.serpantinumDir + "/scripts/qs_manager.sh toggle music"]);
                     }
                 }

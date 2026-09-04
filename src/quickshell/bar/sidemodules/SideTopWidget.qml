@@ -49,6 +49,9 @@ Rectangle {
         iconFontSize: barWindow ? barWindow.s(sideTopRoot.isCompact ? 14 : 15) : (sideTopRoot.isCompact ? 14 : 15)
         accentColor: sideTopRoot.isCompact ? Qt.lighter(ThemeBackend.surface0, 1.18) : ThemeBackend.surface0
         textColor: isHoveredOrHighlighted ? ThemeBackend.text : (sideTopRoot.isCompact ? ThemeBackend.subtext0 : ThemeBackend.overlay2)
-        onClicked: Quickshell.execDetached(["bash", "-c", Caching.serpantinumDir + "/scripts/qs_manager.sh toggle guide"])
+        onClicked: {
+            MorphController.capture(helpBtn, "guide", helpBtn.cornerRadius, barWindow);
+            Quickshell.execDetached(["bash", "-c", Caching.serpantinumDir + "/scripts/qs_manager.sh toggle guide"]);
+        }
     }
 }
