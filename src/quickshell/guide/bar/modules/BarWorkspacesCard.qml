@@ -162,6 +162,27 @@ BarModuleCard {
     SettingsRow {
         rootObj: card.rootObj
         baseColor: Qt.alpha(ThemeBackend.surface1, 0.35)
+        icon: "9"
+        title: I18n.t("guide.bar.modules.workspaces.groups.title", "Workspace group per monitor")
+        description: I18n.t("guide.bar.modules.workspaces.groups.desc", "Each bar shows its own monitor's block of workspaces (1-N, N+1-2N, ...)")
+        searchKeywords: "workspaces groups monitor multi screen"
+
+        Toggle {
+            Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+            checked: card.tab.workspaceGroupsPerMonitor
+            accentColor: ThemeBackend.mauve
+            baseColor: ThemeBackend.surface1
+            handleColor: ThemeBackend.crust
+            handleOffColor: ThemeBackend.text
+            onToggled: function(c) {
+                card.tab.setWorkspaceGroupsPerMonitor(c);
+            }
+        }
+    }
+
+    SettingsRow {
+        rootObj: card.rootObj
+        baseColor: Qt.alpha(ThemeBackend.surface1, 0.35)
         icon: "󰈈"
         title: I18n.t("guide.bar.workspaces.hide_empty.title", "Hide empty workspaces")
         description: I18n.t("guide.bar.workspaces.hide_empty.desc", "Show only occupied workspaces and the active one")
