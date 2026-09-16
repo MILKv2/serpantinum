@@ -132,13 +132,29 @@ Item {
         };
     }
 
-    property var moduleSettings: (typeof Config !== "undefined" && Config.rawSettings && Config.rawSettings.bar && Config.rawSettings.bar.modules) ? parseModuleSettings(Config.rawSettings.bar.modules) : defaultModuleSettings
+    // local demo module: appended to the right hand group when switched on in
+    // the settings panel, so it needs no slot in the user's module layout
+    property bool morphDemoEnabled: (typeof Config !== "undefined" && Config.rawSettings && Config.rawSettings.bar) ? (Config.rawSettings.bar.morphDemo === true) : false
+
+    onMorphDemoEnabledChanged: {
+        let ms = (typeof Config !== "undefined" && Config.rawSettings && Config.rawSettings.bar) ? Config.rawSettings.bar.modules : null;
+        contentWrapper.moduleSettings = withMorphDemo(ms ? parseModuleSettings(ms) : defaultModuleSettings);
+    }
+
+    function withMorphDemo(ms) {
+        if (!morphDemoEnabled) return ms;
+        let out = { "left": ms.left.slice(), "center": ms.center.slice(), "right": ms.right.slice() };
+        if (out.right.indexOf("morphdemo") === -1) out.right.push("morphdemo");
+        return out;
+    }
+
+    property var moduleSettings: withMorphDemo((typeof Config !== "undefined" && Config.rawSettings && Config.rawSettings.bar && Config.rawSettings.bar.modules) ? parseModuleSettings(Config.rawSettings.bar.modules) : defaultModuleSettings)
 
     Connections {
         target: (typeof Config !== "undefined") ? Config : null
         function onSettingsLoaded() {
             let ms = Config.rawSettings && Config.rawSettings.bar && Config.rawSettings.bar.modules ? Config.rawSettings.bar.modules : null;
-            contentWrapper.moduleSettings = parseModuleSettings(ms);
+            contentWrapper.moduleSettings = contentWrapper.withMorphDemo(parseModuleSettings(ms));
         }
     }
 
@@ -214,6 +230,7 @@ Item {
     property real wTimedate: isModuleActive("timedate") ? (timeDateWidget.targetWidth !== undefined ? timeDateWidget.targetWidth : timeDateWidget.width) : 0
     property real wInfo: isModuleActive("info") ? (infoWidget.targetWidth !== undefined ? infoWidget.targetWidth : infoWidget.width) : 0
     property real wWeather: isModuleActive("weather") ? (weatherWidget.targetWidth !== undefined ? weatherWidget.targetWidth : weatherWidget.width) : 0
+    property real wMorphDemo: isModuleActive("morphdemo") ? (morphDemoWidget.targetWidth !== undefined ? morphDemoWidget.targetWidth : morphDemoWidget.width) : 0
 
     function getW(moduleId) {
         if (moduleId === "left") return wLeft;
@@ -231,6 +248,7 @@ Item {
         if (moduleId === "timedate" || moduleId === "time" || moduleId === "clock") return wTimedate;
         if (moduleId === "info" || moduleId === "indicator" || moduleId === "indicators" || moduleId === "record") return wInfo;
         if (moduleId === "weather") return wWeather;
+        if (moduleId === "morphdemo") return wMorphDemo;
         return 0;
     }
 
@@ -424,6 +442,7 @@ Item {
         if (id === "timedate" || id === "time" || id === "clock") return timeDateWidget;
         if (id === "info" || id === "indicator" || id === "indicators" || id === "record") return infoWidget;
         if (id === "weather") return weatherWidget;
+        if (id === "morphdemo") return morphDemoWidget;
         return null;
     }
 
@@ -1035,6 +1054,24 @@ Item {
         Behavior on x {
             enabled: contentWrapper.layoutAnimationsEnabled
             NumberAnimation { duration: 300; easing.type: Easing.OutCubic }
+        }
+    }
+
+    MorphDemoWidget {
+        id: morphDemoWidget
+        z: 10
+        x: targetX
+        y: contentWrapper.getModuleY(morphDemoWidget)
+        visible: contentWrapper.isModuleActive("morphdemo")
+        barWindow: contentWrapper.barWindow
+        isSolid: contentWrapper.isSolid || contentWrapper.isFill
+        distinctPills: contentWrapper.distinctPills
+        moduleActive: contentWrapper.isModuleActive("morphdemo")
+        isGrouped: contentWrapper.isModuleGrouped("morphdemo")
+        targetX: contentWrapper.getModuleX("morphdemo", contentWrapper.layoutState)
+
+        Behavior on opacity {
+            NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
         }
     }
 

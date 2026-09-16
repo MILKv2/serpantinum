@@ -7,6 +7,7 @@ WorkspacesWidget 1.0 WorkspacesWidget.qml
 InfoWidget 1.0 InfoWidget.qml
 TimeDateWidget 1.0 TimeDateWidget.qml 
 WeatherWidget 1.0 WeatherWidget.qml
+MorphDemoWidget 1.0 MorphDemoWidget.qml
 
 SysMonWidget 1.0 system/SysMonWidget.qml
 BatWidget 1.0 system/BatWidget.qml

@@ -41,6 +41,7 @@ Item {
         "autohideTimeout": 1000,
         "workspaceCount": 8,
         "workspaceGroupsPerMonitor": false,
+        "morphDemo": false,
         "groupColors": {},
         "modules": {
             "left": ["left", "workspaces", "media"],
@@ -68,6 +69,7 @@ Item {
     property int autohideTimeout: barSettings.autohideTimeout !== undefined ? barSettings.autohideTimeout : 1000
     property int workspaceCount: barSettings.workspaceCount !== undefined ? barSettings.workspaceCount : 8
     property bool workspaceGroupsPerMonitor: barSettings.workspaceGroupsPerMonitor !== undefined ? barSettings.workspaceGroupsPerMonitor : false
+    property bool morphDemo: barSettings.morphDemo !== undefined ? barSettings.morphDemo : false
 
     ListModel { id: leftModel }
     ListModel { id: centerModel }
@@ -432,6 +434,11 @@ Item {
         barTabRoot.assignedGroupColors = {};
         barTabRoot.workspaceCount = barTabRoot.defaultBarSettings.workspaceCount;
         barTabRoot.workspaceGroupsPerMonitor = barTabRoot.defaultBarSettings.workspaceGroupsPerMonitor;
+        current.morphDemo = barTabRoot.defaultBarSettings.morphDemo;
+        current.distinctPills = barTabRoot.defaultBarSettings.distinctPills;
+        barTabRoot.assignedGroupColors = {};
+        barTabRoot.workspaceCount = barTabRoot.defaultBarSettings.workspaceCount;
+        barTabRoot.morphDemo = barTabRoot.defaultBarSettings.morphDemo;
         barTabRoot.distinctPills = barTabRoot.defaultBarSettings.distinctPills;
         barTabRoot.lastSavedModulesString = barTabRoot.getModulesString(current.modules);
         Config.setSetting("bar", current);
@@ -730,6 +737,7 @@ Item {
         barTabRoot.autohideTimeout = ts.autohideTimeout !== undefined ? ts.autohideTimeout : 1000;
         barTabRoot.workspaceCount = ts.workspaceCount !== undefined ? ts.workspaceCount : 8;
         barTabRoot.workspaceGroupsPerMonitor = ts.workspaceGroupsPerMonitor !== undefined ? ts.workspaceGroupsPerMonitor : false;
+        barTabRoot.morphDemo = ts.morphDemo !== undefined ? ts.morphDemo : false;
         if (ts.groupColors) {
             barTabRoot.assignedGroupColors = ts.groupColors;
         }
@@ -769,6 +777,7 @@ Item {
         current.autohideTimeout = barTabRoot.autohideTimeout;
         current.workspaceCount = barTabRoot.workspaceCount;
         current.workspaceGroupsPerMonitor = barTabRoot.workspaceGroupsPerMonitor;
+        current.morphDemo = barTabRoot.morphDemo;
         if (!current.modules) current.modules = barTabRoot.defaultBarSettings.modules;
         current.groupColors = barTabRoot.assignedGroupColors;
 
@@ -1810,6 +1819,59 @@ Item {
                         onToggled: function(c) {
                             barTabRoot.clearPendingGroup();
                             barTabRoot.workspaceGroupsPerMonitor = c;
+                            barTabRoot.updateBarSettings();
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: rowMorphDemoLayout.implicitHeight + rootObj.s(24)
+                radius: ThemeBackend.borderRadius
+                color: Qt.alpha(ThemeBackend.surface0, 0.4)
+                border.width: 0
+
+                RowLayout {
+                    id: rowMorphDemoLayout
+                    anchors.left: parent.left
+                    anchors.leftMargin: rootObj.s(14)
+                    anchors.right: parent.right
+                    anchors.rightMargin: rootObj.s(14)
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: rootObj.s(12)
+
+                    IconButton {
+                        enabled: false
+                        size: rootObj.s(32)
+                        Layout.preferredWidth: rootObj.s(32)
+                        Layout.preferredHeight: rootObj.s(32)
+                        Layout.alignment: Qt.AlignVCenter
+                        cornerRadius: ThemeBackend.borderRadius
+                        buttonIcon: "󰹻"
+                        iconFontSize: rootObj.s(16)
+                        accentColor: ThemeBackend.surface0
+                        textColor: "#ffffff"
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignVCenter
+                        spacing: rootObj.s(2)
+                        Text { Layout.fillWidth: true; text: I18n.t("guide.bar.morph_demo.title") || "Morph demo pill"; font.family: ThemeBackend.fontFamily; font.pixelSize: rootObj.s(13); color: ThemeBackend.text }
+                        Text { Layout.fillWidth: true; text: I18n.t("guide.bar.morph_demo.desc") || "Adds a demo pill to the bar whose panel grows out of it and folds back in"; font.family: ThemeBackend.fontFamily; font.pixelSize: rootObj.s(11); color: ThemeBackend.subtext0 }
+                    }
+
+                    Toggle {
+                        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                        checked: barTabRoot.morphDemo
+                        accentColor: ThemeBackend.mauve
+                        baseColor: ThemeBackend.surface1
+                        handleColor: ThemeBackend.crust
+                        handleOffColor: ThemeBackend.text
+                        onToggled: function(c) {
+                            barTabRoot.clearPendingGroup();
+                            barTabRoot.morphDemo = c;
                             barTabRoot.updateBarSettings();
                         }
                     }
