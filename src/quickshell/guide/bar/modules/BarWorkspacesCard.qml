@@ -183,6 +183,63 @@ BarModuleCard {
     SettingsRow {
         rootObj: card.rootObj
         baseColor: Qt.alpha(ThemeBackend.surface1, 0.35)
+        icon: "5"
+        title: I18n.t("guide.bar.modules.workspaces.display_follows.title", "Display same amount as workspace count")
+        description: I18n.t("guide.bar.modules.workspaces.display_follows.desc", "Turn off to set how many workspaces each monitor shows")
+        searchKeywords: "workspaces display count per monitor"
+
+        Toggle {
+            Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+            checked: card.tab.workspaceDisplayFollowsCount
+            accentColor: ThemeBackend.mauve
+            baseColor: ThemeBackend.surface1
+            handleColor: ThemeBackend.crust
+            handleOffColor: ThemeBackend.text
+            onToggled: function(c) {
+                card.tab.setDisplayFollowsCount(c);
+            }
+        }
+    }
+
+    Repeater {
+        model: card.tab.workspaceDisplayFollowsCount ? [] : card.tab.connectedScreens
+        delegate: SettingsRow {
+            required property var modelData
+
+            rootObj: card.rootObj
+            baseColor: Qt.alpha(ThemeBackend.surface1, 0.2)
+            searchable: false
+            icon: "󰍹"
+            title: modelData.name
+            description: modelData.width + "x" + modelData.height
+
+            NumberSelector {
+                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                implicitWidth: card.rootObj.s(140)
+                implicitHeight: card.rootObj.s(32)
+                from: 2
+                to: 10
+                stepSize: 1
+                decimals: 0
+                value: card.tab.displayCountFor(modelData.name)
+                baseColor: ThemeBackend.surface0
+                accentColor: ThemeBackend.mauve
+                buttonColor: ThemeBackend.surface1
+                buttonTextColor: ThemeBackend.text
+                textColor: ThemeBackend.text
+                subTextColor: ThemeBackend.subtext0
+                borderColor: Qt.alpha(ThemeBackend.surface2, 0.6)
+                cornerRadius: ThemeBackend.borderRadius
+                fontFamily: ThemeBackend.fontFamily
+                fontPixelSize: card.rootObj.s(12)
+                onTriggered: card.tab.setDisplayCountFor(modelData.name, Math.round(value))
+            }
+        }
+    }
+
+    SettingsRow {
+        rootObj: card.rootObj
+        baseColor: Qt.alpha(ThemeBackend.surface1, 0.35)
         icon: "󰈈"
         title: I18n.t("guide.bar.workspaces.hide_empty.title", "Hide empty workspaces")
         description: I18n.t("guide.bar.workspaces.hide_empty.desc", "Show only occupied workspaces and the active one")
