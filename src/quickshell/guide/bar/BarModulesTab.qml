@@ -264,8 +264,8 @@ Item {
                                 Layout.fillWidth: true
                                 Layout.alignment: Qt.AlignVCenter
                                 spacing: rootObj.s(2)
-                                Text { Layout.fillWidth: true; text: I18n.t("guide.bar.workspaces.title"); font.family: ThemeBackend.fontFamily; font.pixelSize: rootObj.s(13); color: ThemeBackend.text }
-                                Text { Layout.fillWidth: true; text: I18n.t("guide.bar.workspaces.desc"); font.family: ThemeBackend.fontFamily; font.pixelSize: rootObj.s(11); color: ThemeBackend.subtext0 }
+                                Text { Layout.fillWidth: true; text: I18n.t("guide.bar.modules.workspaces.count.title", "Workspace count"); font.family: ThemeBackend.fontFamily; font.pixelSize: rootObj.s(13); color: ThemeBackend.text }
+                                Text { Layout.fillWidth: true; text: I18n.t("guide.bar.modules.workspaces.count.desc", "How many workspaces the bar shows, and the block size each monitor gets when groups are on"); font.family: ThemeBackend.fontFamily; font.pixelSize: rootObj.s(11); color: ThemeBackend.subtext0 }
                             }
 
                             NumberSelector {

@@ -294,6 +294,10 @@
           "display_follows": {
             "title": "Display same amount as workspace count",
             "desc": "Turn off to set how many workspaces each monitor shows"
+          },
+          "count": {
+            "title": "Workspace count",
+            "desc": "How many workspaces the bar shows, and the block size each monitor gets when groups are on"
           }
         },
         "media": "Media",
