@@ -357,6 +357,10 @@
       "distinct_pills": {
         "title": "Enable a modular and compact style for widgets",
         "desc": "Makes bar's modules have an outlining rectangle and shrink their size to fit the modular look"
+      },
+      "morph_demo": {
+        "title": "Morph demo pill",
+        "desc": "Adds a demo pill to the bar whose panel grows out of it and folds back in"
       }
     },
     "theme": {
