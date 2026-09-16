@@ -45,6 +45,11 @@ Item {
         return 8;
     }
 
+    property bool workspaceGroupsPerMonitor: {
+        let bs = Config.getSetting("bar", {});
+        return !!(bs && bs.workspaceGroupsPerMonitor);
+    }
+
     property bool hideEmptyWorkspaces: {
         let bs = Config.getSetting("bar", {});
         if (bs && bs.hideEmptyWorkspaces !== undefined) return Boolean(bs.hideEmptyWorkspaces);
@@ -422,6 +427,8 @@ Item {
             barModulesRoot.hideEmptyWorkspaces = false;
         }
 
+        barModulesRoot.workspaceGroupsPerMonitor = !!(bs && bs.workspaceGroupsPerMonitor);
+
         if (bs && bs.timeStyle) {
             barModulesRoot.timeStyle = bs.timeStyle;
         } else {
@@ -610,6 +617,13 @@ Item {
         barModulesRoot.workspaceCount = count;
         let current = Config.getSetting("bar", {});
         current.workspaceCount = count;
+        Config.setSetting("bar", current);
+    }
+
+    function setWorkspaceGroupsPerMonitor(enabled) {
+        barModulesRoot.workspaceGroupsPerMonitor = enabled;
+        let current = Config.getSetting("bar", {});
+        current.workspaceGroupsPerMonitor = enabled;
         Config.setSetting("bar", current);
     }
 
@@ -1342,6 +1356,27 @@ Item {
                             handleOffColor: ThemeBackend.text
                             onToggled: function(c) {
                                 barModulesRoot.setHideEmptyWorkspaces(c);
+                            }
+                        }
+                    }
+
+                    SettingsRow {
+                        rootObj: barModulesRoot.rootObj
+                        baseColor: Qt.alpha(ThemeBackend.surface1, 0.35)
+                        icon: "9"
+                        title: I18n.t("guide.bar.modules.workspaces.groups.title", "Workspace group per monitor")
+                        description: I18n.t("guide.bar.modules.workspaces.groups.desc", "Each bar shows its own monitor's block of workspaces (1-N, N+1-2N, ...)")
+                        searchKeywords: "workspaces groups monitor multi screen"
+
+                        Toggle {
+                            Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                            checked: barModulesRoot.workspaceGroupsPerMonitor
+                            accentColor: ThemeBackend.mauve
+                            baseColor: ThemeBackend.surface1
+                            handleColor: ThemeBackend.crust
+                            handleOffColor: ThemeBackend.text
+                            onToggled: function(c) {
+                                barModulesRoot.setWorkspaceGroupsPerMonitor(c);
                             }
                         }
                     }
