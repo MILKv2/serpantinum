@@ -34,6 +34,11 @@ Item {
         return 8;
     }
 
+    property bool workspaceGroupsPerMonitor: {
+        let bs = Config.getSetting("bar", {});
+        return !!(bs && bs.workspaceGroupsPerMonitor);
+    }
+
     readonly property var workspaceStyles: [
         {
             "id": "pills",
@@ -87,6 +92,7 @@ Item {
         } else {
             barModulesRoot.workspaceCount = 8;
         }
+        barModulesRoot.workspaceGroupsPerMonitor = !!(bs && bs.workspaceGroupsPerMonitor);
     }
 
     function setWorkspacesStyle(styleName) {
@@ -100,6 +106,13 @@ Item {
         barModulesRoot.workspaceCount = count;
         let current = Config.getSetting("bar", {});
         current.workspaceCount = count;
+        Config.setSetting("bar", current);
+    }
+
+    function setWorkspaceGroupsPerMonitor(enabled) {
+        barModulesRoot.workspaceGroupsPerMonitor = enabled;
+        let current = Config.getSetting("bar", {});
+        current.workspaceGroupsPerMonitor = enabled;
         Config.setSetting("bar", current);
     }
 
@@ -247,6 +260,52 @@ Item {
                                 onTriggered: {
                                     barModulesRoot.setWorkspaceCount(Math.round(workspaceCountSelector.value));
                                 }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: rowWorkspaceGroupsLayout.implicitHeight + rootObj.s(24)
+                        radius: ThemeBackend.borderRadius
+                        color: Qt.alpha(ThemeBackend.surface1, 0.35)
+                        border.width: 0
+
+                        RowLayout {
+                            id: rowWorkspaceGroupsLayout
+                            anchors.left: parent.left
+                            anchors.leftMargin: rootObj.s(14)
+                            anchors.right: parent.right
+                            anchors.rightMargin: rootObj.s(14)
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: rootObj.s(12)
+
+                            IconButton {
+                                enabled: false
+                                size: rootObj.s(32)
+                                Layout.preferredWidth: rootObj.s(32)
+                                Layout.preferredHeight: rootObj.s(32)
+                                Layout.alignment: Qt.AlignVCenter
+                                cornerRadius: ThemeBackend.borderRadius
+                                buttonIcon: "9"
+                                iconFontSize: rootObj.s(16)
+                                accentColor: ThemeBackend.surface0
+                                textColor: "#ffffff"
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignVCenter
+                                spacing: rootObj.s(2)
+                                Text { Layout.fillWidth: true; text: I18n.t("guide.bar.modules.workspaces.groups.title", "Workspace group per monitor"); font.family: ThemeBackend.fontFamily; font.pixelSize: rootObj.s(13); color: ThemeBackend.text }
+                                Text { Layout.fillWidth: true; text: I18n.t("guide.bar.modules.workspaces.groups.desc", "Each bar shows its own monitor's block of workspaces (1-N, N+1-2N, ...)"); font.family: ThemeBackend.fontFamily; font.pixelSize: rootObj.s(11); color: ThemeBackend.subtext0; wrapMode: Text.WordWrap }
+                            }
+
+                            Toggle {
+                                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                checked: barModulesRoot.workspaceGroupsPerMonitor
+                                accentColor: ThemeBackend.mauve; baseColor: ThemeBackend.surface1; handleColor: ThemeBackend.crust; handleOffColor: ThemeBackend.text
+                                onToggled: function(c) { barModulesRoot.setWorkspaceGroupsPerMonitor(c); }
                             }
                         }
                     }

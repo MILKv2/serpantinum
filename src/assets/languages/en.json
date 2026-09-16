@@ -286,7 +286,11 @@
               "pacman": "Pacman"
             }
           },
-          "name": "Workspaces"
+          "name": "Workspaces",
+          "groups": {
+            "title": "Workspace group per monitor",
+            "desc": "Each bar shows its own monitor's block of workspaces (1-N, N+1-2N, ...)"
+          }
         },
         "media": "Media",
         "tray": "Tray",
