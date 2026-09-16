@@ -36,6 +36,7 @@ Item {
         "opacity": 100,
         "style": "modular",
         "distinctPills": false,
+        "morphDemo": false,
         "time": {"format": "HH:mm:ss"},
         "autohide": false,
         "autohideTimeout": 1000,
@@ -61,6 +62,7 @@ Item {
         return "modular";
     }
     property bool distinctPills: barSettings.distinctPills !== undefined ? barSettings.distinctPills : false
+    property bool morphDemo: barSettings.morphDemo !== undefined ? barSettings.morphDemo : false
     property string timeFormat: barSettings.time && barSettings.time.format !== undefined ? barSettings.time.format : "HH:mm:ss"
     property bool autohide: barSettings.autohide !== undefined ? barSettings.autohide : false
     property int autohideTimeout: barSettings.autohideTimeout !== undefined ? barSettings.autohideTimeout : 1000
@@ -423,8 +425,10 @@ Item {
         current.modules = JSON.parse(JSON.stringify(barTabRoot.defaultBarSettings.modules));
         current.groupColors = {};
         current.distinctPills = barTabRoot.defaultBarSettings.distinctPills;
+        current.morphDemo = barTabRoot.defaultBarSettings.morphDemo;
         barTabRoot.assignedGroupColors = {};
         barTabRoot.distinctPills = barTabRoot.defaultBarSettings.distinctPills;
+        barTabRoot.morphDemo = barTabRoot.defaultBarSettings.morphDemo;
         barTabRoot.lastSavedModulesString = barTabRoot.getModulesString(current.modules);
         Config.setSetting("bar", current);
         barTabRoot.barSettings = current;
@@ -717,6 +721,7 @@ Item {
             barTabRoot.barStyle = "modular";
         }
         barTabRoot.distinctPills = ts.distinctPills !== undefined ? ts.distinctPills : false;
+        barTabRoot.morphDemo = ts.morphDemo !== undefined ? ts.morphDemo : false;
         barTabRoot.timeFormat = ts.time && ts.time.format !== undefined ? ts.time.format : "HH:mm:ss";
         barTabRoot.autohide = ts.autohide !== undefined ? ts.autohide : false;
         barTabRoot.autohideTimeout = ts.autohideTimeout !== undefined ? ts.autohideTimeout : 1000;
@@ -753,6 +758,7 @@ Item {
         current.opacity = barTabRoot.currentBarOpacity;
         current.style = barTabRoot.barStyle;
         current.distinctPills = barTabRoot.distinctPills;
+        current.morphDemo = barTabRoot.morphDemo;
         if (!current.time) current.time = {};
         current.time.format = barTabRoot.timeFormat;
         current.autohide = barTabRoot.autohide;
@@ -1272,6 +1278,71 @@ Item {
                                 barTabRoot.distinctPills = c;
                                 barTabRoot.updateBarSettings();
                             }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: rowMorphDemoLayout.implicitHeight + rootObj.s(24)
+                radius: ThemeBackend.borderRadius
+                color: Qt.alpha(ThemeBackend.surface0, 0.4)
+                border.width: 0
+
+                RowLayout {
+                    id: rowMorphDemoLayout
+                    anchors.left: parent.left
+                    anchors.leftMargin: rootObj.s(14)
+                    anchors.right: parent.right
+                    anchors.rightMargin: rootObj.s(14)
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: rootObj.s(12)
+
+                    IconButton {
+                        enabled: false
+                        size: rootObj.s(32)
+                        Layout.preferredWidth: rootObj.s(32)
+                        Layout.preferredHeight: rootObj.s(32)
+                        Layout.alignment: Qt.AlignVCenter
+                        cornerRadius: ThemeBackend.borderRadius
+                        buttonIcon: "b"
+                        iconFontSize: rootObj.s(16)
+                        accentColor: ThemeBackend.surface0
+                        textColor: "#ffffff"
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignVCenter
+                        spacing: rootObj.s(2)
+                        Text {
+                            Layout.fillWidth: true
+                            text: I18n.t("guide.bar.morph_demo.title") || "Morph demo pill"
+                            font.family: ThemeBackend.fontFamily
+                            font.pixelSize: rootObj.s(13)
+                            color: ThemeBackend.text
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: I18n.t("guide.bar.morph_demo.desc") || "Adds a demo pill to the bar whose panel grows out of it and folds back in"
+                            font.family: ThemeBackend.fontFamily
+                            font.pixelSize: rootObj.s(11)
+                            color: ThemeBackend.subtext0
+                        }
+                    }
+
+                    Toggle {
+                        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                        checked: barTabRoot.morphDemo
+                        accentColor: ThemeBackend.mauve
+                        baseColor: ThemeBackend.surface1
+                        handleColor: ThemeBackend.crust
+                        handleOffColor: ThemeBackend.text
+                        onToggled: function(c) {
+                            barTabRoot.clearPendingGroup();
+                            barTabRoot.morphDemo = c;
+                            barTabRoot.updateBarSettings();
                         }
                     }
                 }
