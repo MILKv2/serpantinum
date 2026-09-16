@@ -44,8 +44,34 @@ Rectangle {
         return "pills";
     }
 
+    // Display count, independent of the group. When "follows count" is off the bar
+    // shows what this monitor is configured to show, keyed by screen name the same
+    // way the display settings key their per-monitor scale. A missing entry falls
+    // through to the shared count, so unplugging a screen only ever costs the
+    // override, never the block layout - that one lives in groupSize.
+    readonly property var displayPerMonitor: {
+        let dummy = configRevision;
+        let bs = (typeof Config !== "undefined" && Config.rawSettings) ? Config.rawSettings.bar : null;
+        return (bs && bs.workspaceDisplayPerMonitor) ? bs.workspaceDisplayPerMonitor : ({});
+    }
+
+    readonly property bool displayFollowsCount: {
+        let dummy = configRevision;
+        let bs = (typeof Config !== "undefined" && Config.rawSettings) ? Config.rawSettings.bar : null;
+        return !(bs && bs.workspaceDisplayFollowsCount === false);
+    }
+
+    readonly property int displayOverride: {
+        if (displayFollowsCount) return -1;
+        if (!barWindow || !barWindow.screen) return -1;
+        let v = displayPerMonitor[barWindow.screen.name];
+        if (v === undefined || v === null) return -1;
+        return Math.max(2, Math.min(10, v));
+    }
+
     property int baseWorkspaceCount: {
         let dummy = configRevision;
+        if (displayOverride > 0) return displayOverride;
         if (typeof Config !== "undefined" && Config.rawSettings) {
             if (Config.rawSettings.bar && Config.rawSettings.bar.workspaceCount !== undefined) {
                 return Math.max(2, Math.min(10, Config.rawSettings.bar.workspaceCount));
