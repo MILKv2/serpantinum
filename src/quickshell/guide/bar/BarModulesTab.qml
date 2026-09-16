@@ -859,8 +859,8 @@ Item {
                         rootObj: barModulesRoot.rootObj
                         baseColor: Qt.alpha(ThemeBackend.surface1, 0.35)
                         icon: "󰮯"
-                        title: I18n.t("guide.bar.workspaces.title")
-                        description: I18n.t("guide.bar.workspaces.desc")
+                        title: I18n.t("guide.bar.modules.workspaces.count.title", "Workspace count")
+                        description: I18n.t("guide.bar.modules.workspaces.count.desc", "How many workspaces the bar shows, and the block size each monitor gets when groups are on")
 
                         NumberSelector {
                             id: workspaceCountSelector
