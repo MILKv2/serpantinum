@@ -290,6 +290,10 @@
           "groups": {
             "title": "Workspace group per monitor",
             "desc": "Each bar shows its own monitor's block of workspaces (1-N, N+1-2N, ...)"
+          },
+          "display_follows": {
+            "title": "Display same amount as workspace count",
+            "desc": "Turn off to set how many workspaces each monitor shows"
           }
         },
         "media": "Media",
