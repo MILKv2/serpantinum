@@ -43,9 +43,15 @@ Rectangle {
 
     readonly property int groupOffset: {
         if (!workspaceGroupsPerMonitor) return 0;
+        // Hyprland only: the niri and sway paths track their own active index and
+        // dispatch plain numbers, so an offset would desync the pills from focus.
+        if (isNiri || isSway) return 0;
         if (!barWindow || !barWindow.screen) return 0;
-        let xs = Quickshell.screens.map(sc => sc.x).sort((a, b) => a - b);
-        let i = xs.indexOf(barWindow.screen.x);
+        // Ordered left to right, y breaking ties so stacked screens keep a stable
+        // order. Matched by name rather than by x, because two screens can sit at
+        // the same coordinate and would otherwise both claim the first group.
+        let ordered = Quickshell.screens.map(sc => sc).sort((a, b) => (a.x - b.x) || (a.y - b.y));
+        let i = ordered.findIndex(sc => sc.name === barWindow.screen.name);
         return (i < 0 ? 0 : i) * workspaceCount;
     }
 
