@@ -147,6 +147,15 @@ function getLayout(name, mx, my, mw, mh, userScale, barPosition) {
                 "right": { anchor: "left" } 
             } 
         },
+        "morphdemo": {
+            w: 480, h: 300, comp: "demo/MorphDemo.qml",
+            pos: {
+                "top": { anchor: "top-center", mt: 52 },
+                "bottom": { anchor: "bottom-center", mb: 52 },
+                "left": { anchor: "top-left", mt: 5, ml: 52 },
+                "right": { anchor: "top-right", mt: 5, mr: 52 }
+            }
+        },
         "hidden": { 
             w: 1, h: 1, comp: "", 
             pos: { 
