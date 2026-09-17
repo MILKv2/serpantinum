@@ -236,6 +236,10 @@
       "maxvolume": {
         "title": "Maximum volume",
         "desc": "Upper limit for the volume slider, OSD and media keys"
+      },
+      "follow_urgent": {
+        "title": "Follow windows that ask for focus",
+        "desc": "Jump to a window that requests attention, like a link opening in an already running browser"
       }
     },
     "display": {
