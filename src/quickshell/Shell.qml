@@ -47,6 +47,7 @@ ShellRoot {
     Lock {}
     WidgetRedactor {}
     LockRedactor {}
+    WorkspaceGroupsSync {}
 
     Launcher {}
     Clipboard {}    
