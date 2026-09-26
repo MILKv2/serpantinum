@@ -106,10 +106,13 @@ if [[ "$ACTION" =~ ^[0-9]+$ ]]; then
 
         if [[ "$WS_GROUPS_PER_MONITOR" == "true" ]]; then
             # The block size is the configured count, matching the widget's stride.
-            GROUP_SIZE="$(jq -r '.bar.workspaceCount // .workspaceCount // 8' "$CONFIG_SETTINGS_JSON" 2>/dev/null)"
-            if [[ ! "$GROUP_SIZE" =~ ^[0-9]+$ ]] || (( GROUP_SIZE < 1 )); then
+            # Same lookup order and 2-10 clamp as the widgets' groupSize.
+            GROUP_SIZE="$(jq -r '.bar.workspaceCount // .general.workspaceCount // .workspaceCount // 8' "$CONFIG_SETTINGS_JSON" 2>/dev/null)"
+            if [[ ! "$GROUP_SIZE" =~ ^[0-9]+$ ]]; then
                 GROUP_SIZE=8
             fi
+            (( GROUP_SIZE < 2 )) && GROUP_SIZE=2
+            (( GROUP_SIZE > 10 )) && GROUP_SIZE=10
 
             # The monitor comes from the cursor, not from "focused". With an empty
             # workspace on the second screen the keyboard focus stays on the last
