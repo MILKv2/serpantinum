@@ -127,18 +127,48 @@ if [[ "$ACTION" =~ ^[0-9]+$ ]]; then
 
             # Same ordering as the bar widget: left to right, y breaking ties.
             # Extents are divided by scale because x/y are in logical coordinates.
-            MON_INDEX="$(hyprctl monitors -j 2>/dev/null | jq -r \
+            MON_INFO="$(hyprctl monitors -j 2>/dev/null | jq -c \
                 --argjson x "$CURSOR_X" --argjson y "$CURSOR_Y" '
                 ([ .[] | select(.disabled != true) ] | sort_by(.x, .y)) as $mons
-                | ( ( $mons | to_entries
-                      | map(select($x >= .value.x and $x < (.value.x + .value.width / .value.scale)
-                                and $y >= .value.y and $y < (.value.y + .value.height / .value.scale)))
-                      | .[0].key )
-                    // ( $mons | map(.focused) | index(true) )
-                    // 0 )
+                | ( ( ( $mons | to_entries
+                        | map(select($x >= .value.x and $x < (.value.x + .value.width / .value.scale)
+                                  and $y >= .value.y and $y < (.value.y + .value.height / .value.scale)))
+                        | .[0].key )
+                      // ( $mons | map(.focused) | index(true) )
+                      // 0 ) as $i
+                    | { i: $i, mon: $mons[$i].name, names: [ $mons[].name ] } )
             ' 2>/dev/null)"
-            if [[ "$MON_INDEX" =~ ^[0-9]+$ ]]; then
+            MON_INDEX="$(jq -r '.i // empty' <<<"$MON_INFO" 2>/dev/null)"
+            MON_NAME="$(jq -r '.mon // empty' <<<"$MON_INFO" 2>/dev/null)"
+            MON_NAMES_LUA="$(jq -r '"{ " + (.names | map(tojson) | join(", ")) + " }"' <<<"$MON_INFO" 2>/dev/null)"
+            if [[ "$MON_INDEX" =~ ^[0-9]+$ && -n "$MON_NAME" ]]; then
                 TARGET_WS=$(( ACTION + MON_INDEX * GROUP_SIZE ))
+
+                # One Lua dispatch, same logic as bar/WorkspaceGroups.js switchLua:
+                # a workspace of this block living on another screen is brought
+                # here instead of dragging the focus over there, and the switch
+                # happens on the monitor under the cursor, not the one that still
+                # holds keyboard focus (a new workspace is created on the latter).
+                MON_NAME_LUA="$(jq -rn --arg m "$MON_NAME" '$m | tojson')"
+                if [[ "$TARGET" == "move" ]]; then
+                    ACT_LUA='if win then hl.dispatch(hl.dsp.window.move({ workspace = tostring(id), window = "address:" .. win.address })) end '
+                else
+                    ACT_LUA='hl.dispatch(hl.dsp.focus({ monitor = mon })); hl.dispatch(hl.dsp.focus({ workspace = tostring(id) })); '
+                fi
+                LUA="function() local names = $MON_NAMES_LUA; local size = $GROUP_SIZE; \
+local function groupOf(n) for i, v in ipairs(names) do if v == n then return i end end end \
+local function monOf(id) local w = hl.get_workspace(id); return w and w.monitor and w.monitor.name end \
+local function bring(id, mon) local on = monOf(id); if not on or on == mon then return end \
+local om = hl.get_monitor(on); local ow = om and om.active_workspace; local oi = groupOf(on); \
+if ow and ow.id == id and oi then local first = (oi - 1) * size + 1; local fon = monOf(first); \
+if first ~= id and (not fon or fon == on) then hl.dispatch(hl.dsp.focus({ monitor = on })); \
+hl.dispatch(hl.dsp.focus({ workspace = tostring(first) })); end end \
+on = monOf(id); if on and on ~= mon then hl.dispatch(hl.dsp.workspace.move({ workspace = tostring(id), monitor = mon })); end end \
+local mon = $MON_NAME_LUA; local id = $TARGET_WS; local win = hl.get_active_window(); bring(id, mon); ${ACT_LUA}\
+if monOf(id) and monOf(id) ~= mon then hl.dispatch(hl.dsp.workspace.move({ workspace = tostring(id), monitor = mon })); end end"
+                hyprctl dispatch "$LUA" >/dev/null 2>&1 &
+                send_qs_ipc "close" "" "" &
+                exit 0
             fi
         fi
 
