@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 import "../"
+import "WorkspaceGroups.js" as WorkspaceGroups
 
 Item {
     id: workspaceGroupsSyncRoot
@@ -14,8 +15,9 @@ Item {
     // the first monitor jumps to the other screen instead, until something
     // moves the second monitor into its own block by hand.
     //
-    // So once the monitors are known, every monitor showing a workspace outside
-    // its block is moved to the first workspace of that block. Only at startup,
+    // So once the monitors are known, every workspace is put back on the monitor
+    // owning its block, and every monitor showing a workspace outside its block
+    // is moved to the first workspace of that block. Only at startup,
     // when the screens change and when the setting is turned on - never on a
     // regular workspace switch, which is the user's to make.
 
@@ -67,36 +69,13 @@ Item {
         // Ordered the way the widgets order them: left to right, y breaking ties.
         let names = Quickshell.screens.map(sc => sc)
             .sort((a, b) => (a.x - b.x) || (a.y - b.y))
-            .map(sc => JSON.stringify(String(sc.name)));
+            .map(sc => String(sc.name));
         if (names.length === 0) return;
 
-        // The check itself runs inside Hyprland, as one dispatch. The shell's own
-        // view of the monitors follows events and can lag behind - right after a
-        // reload it may still show a monitor on the workspace it just left - and
-        // one dispatch also keeps the monitor focus and the workspace switch in
-        // order. Focus goes back to the monitor that had it.
-        //  - special and named workspaces (id below 1) are not ours to move
-        //  - if the group's first workspace already lives on another monitor,
-        //    focusing it would pull that screen along, so that monitor is skipped
-        Hyprland.dispatch("function() "
-            + "local names = { " + names.join(", ") + " }; "
-            + "local size = " + groupSize + "; "
-            + "local prev = hl.get_active_monitor(); "
-            + "local moved = false; "
-            + "for i, name in ipairs(names) do "
-            +   "local m = hl.get_monitor(name); "
-            +   "local ws = m and m.active_workspace; "
-            +   "local first = (i - 1) * size + 1; "
-            +   "if ws and ws.id >= 1 and (ws.id < first or ws.id >= first + size) then "
-            +     "local other = hl.get_workspace(first); "
-            +     "if not (other and other.monitor and other.monitor.name ~= name) then "
-            +       "hl.dispatch(hl.dsp.focus({ monitor = name })); "
-            +       "hl.dispatch(hl.dsp.focus({ workspace = tostring(first) })); "
-            +       "moved = true; "
-            +     "end "
-            +   "end "
-            + "end "
-            + "if moved and prev then hl.dispatch(hl.dsp.focus({ monitor = prev.name })) end "
-            + "end");
+        // Workspaces already stranded on the wrong monitor (Hyprland assigns the
+        // startup ones in connector order, not left to right) are moved back to
+        // the monitor owning their group first - otherwise switching to one later
+        // would jump to the other screen. See WorkspaceGroups.js.
+        Hyprland.dispatch(WorkspaceGroups.syncLua(names, groupSize));
     }
 }
