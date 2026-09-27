@@ -7,6 +7,7 @@ import Quickshell.Hyprland
 import Quickshell.Io
 import "../../../reusables"
 import "../../../"
+import "../../WorkspaceGroups.js" as WorkspaceGroups
 
 Rectangle {
     id: workspacesWidgetRoot
@@ -233,7 +234,16 @@ Rectangle {
             swayActiveIndex = index;
             Quickshell.execDetached(["swaymsg", "workspace", "number", wsId.toString()]);
         } else {
-            Hyprland.dispatch("hl.dsp.focus({ workspace = " + (wsId + groupOffset) + " })");
+            if (workspaceGroupsPerMonitor && barWindow && barWindow.screen) {
+                // Bring the workspace to this bar's screen if it lives on another
+                // one, instead of letting focus jump there (WorkspaceGroups.js).
+                let names = Quickshell.screens.map(sc => sc)
+                    .sort((a, b) => (a.x - b.x) || (a.y - b.y))
+                    .map(sc => String(sc.name));
+                Hyprland.dispatch(WorkspaceGroups.switchLua(names, groupSize, barWindow.screen.name, wsId + groupOffset, "focus"));
+            } else {
+                Hyprland.dispatch("hl.dsp.focus({ workspace = " + (wsId + groupOffset) + " })");
+            }
         }
     }
 
