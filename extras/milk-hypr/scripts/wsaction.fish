@@ -87,9 +87,34 @@ switch $action
         exit 1
 end
 
+# Monitor-wlasciciel docelowej grupy (dla -g to INNY ekran niz ten pod kursorem).
+set -l names (echo $mons | jq -r '[.[]] | sort_by(.x) | .[].name')
+set -l owner_idx (math "floor(($target - 1) / 10) + 1")
+set -l mon $names[$owner_idx]
+test -z "$mon"; and set mon $names[(math "$idx + 1")]
+set -l names_lua '{ '(string join ', ' (string replace -r '(.*)' '"$1"' -- $names))' }'
+
+# Jedna funkcja Lua wewnatrz Hyprlanda (ta sama logika co bar/WorkspaceGroups.js
+# w forku Serpantinum). Hyprland trzyma workspace na monitorze, na ktorym powstal,
+# a przelaczenie na ws lezacy na innym ekranie przerzuca tam fokus. Przy starcie
+# rozdaje ws po kolei zlaczy, nie od lewej, a nowy ws tworzy na monitorze z
+# fokusem klawiatury, niekoniecznie tym pod kursorem. Wiec: ws z grupy lezacy
+# gdzie indziej jest PRZENOSZONY tutaj, a przelaczenie dzieje sie na wlasciwym
+# monitorze.
+set -l act 'hl.dispatch(hl.dsp.focus({ monitor = mon })); hl.dispatch(hl.dsp.focus({ workspace = tostring(id) })); '
 switch $action
-    case focus relfocus
-        hyprctl dispatch "hl.dsp.focus({ workspace = \"$target\" })" >/dev/null
     case move relmove
-        hyprctl dispatch "hl.dsp.window.move({ workspace = \"$target\" })" >/dev/null
+        set act 'if win then hl.dispatch(hl.dsp.window.move({ workspace = tostring(id), window = "address:" .. win.address })) end '
 end
+
+hyprctl dispatch "function() local names = $names_lua; local size = 10; "\
+"local function groupOf(n) for i, v in ipairs(names) do if v == n then return i end end end "\
+"local function monOf(id) local w = hl.get_workspace(id); return w and w.monitor and w.monitor.name end "\
+"local function bring(id, mon) local on = monOf(id); if not on or on == mon then return end "\
+"local om = hl.get_monitor(on); local ow = om and om.active_workspace; local oi = groupOf(on); "\
+"if ow and ow.id == id and oi then local first = (oi - 1) * size + 1; local fon = monOf(first); "\
+"if first ~= id and (not fon or fon == on) then hl.dispatch(hl.dsp.focus({ monitor = on })); "\
+"hl.dispatch(hl.dsp.focus({ workspace = tostring(first) })); end end "\
+"on = monOf(id); if on and on ~= mon then hl.dispatch(hl.dsp.workspace.move({ workspace = tostring(id), monitor = mon })); end end "\
+"local mon = \"$mon\"; local id = $target; local win = hl.get_active_window(); bring(id, mon); $act"\
+"if monOf(id) and monOf(id) ~= mon then hl.dispatch(hl.dsp.workspace.move({ workspace = tostring(id), monitor = mon })); end end" >/dev/null
