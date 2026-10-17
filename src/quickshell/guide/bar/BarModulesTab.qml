@@ -45,6 +45,46 @@ Item {
         return 8;
     }
 
+    property bool workspaceGroupsPerMonitor: {
+        let bs = Config.getSetting("bar", {});
+        return !!(bs && bs.workspaceGroupsPerMonitor);
+    }
+
+    property bool workspaceDisplayFollowsCount: {
+        let bs = Config.getSetting("bar", {});
+        return !(bs && bs.workspaceDisplayFollowsCount === false);
+    }
+
+    property var workspaceDisplayPerMonitor: {
+        let bs = Config.getSetting("bar", {});
+        return (bs && bs.workspaceDisplayPerMonitor) ? bs.workspaceDisplayPerMonitor : ({});
+    }
+
+    readonly property var connectedScreens: Quickshell.screens ? Quickshell.screens : []
+
+    function displayCountFor(name) {
+        let v = barModulesRoot.workspaceDisplayPerMonitor[name];
+        if (v === undefined || v === null) return barModulesRoot.workspaceCount;
+        return Math.max(2, Math.min(10, v));
+    }
+
+    function setDisplayFollowsCount(enabled) {
+        barModulesRoot.workspaceDisplayFollowsCount = enabled;
+        let current = Config.getSetting("bar", {});
+        current.workspaceDisplayFollowsCount = enabled;
+        Config.setSetting("bar", current);
+    }
+
+    function setDisplayCountFor(name, count) {
+        let current = Config.getSetting("bar", {});
+        let map = current.workspaceDisplayPerMonitor ? current.workspaceDisplayPerMonitor : ({});
+        map[name] = count;
+        current.workspaceDisplayPerMonitor = map;
+        Config.setSetting("bar", current);
+        barModulesRoot.workspaceDisplayPerMonitor = map;
+        barModulesRoot.workspaceDisplayPerMonitorChanged();
+    }
+
     property bool hideEmptyWorkspaces: {
         let bs = Config.getSetting("bar", {});
         if (bs && bs.hideEmptyWorkspaces !== undefined) return Boolean(bs.hideEmptyWorkspaces);
@@ -422,6 +462,10 @@ Item {
             barModulesRoot.hideEmptyWorkspaces = false;
         }
 
+        barModulesRoot.workspaceGroupsPerMonitor = !!(bs && bs.workspaceGroupsPerMonitor);
+        barModulesRoot.workspaceDisplayFollowsCount = !(bs && bs.workspaceDisplayFollowsCount === false);
+        barModulesRoot.workspaceDisplayPerMonitor = (bs && bs.workspaceDisplayPerMonitor) ? bs.workspaceDisplayPerMonitor : ({});
+
         if (bs && bs.timeStyle) {
             barModulesRoot.timeStyle = bs.timeStyle;
         } else {
@@ -610,6 +654,13 @@ Item {
         barModulesRoot.workspaceCount = count;
         let current = Config.getSetting("bar", {});
         current.workspaceCount = count;
+        Config.setSetting("bar", current);
+    }
+
+    function setWorkspaceGroupsPerMonitor(enabled) {
+        barModulesRoot.workspaceGroupsPerMonitor = enabled;
+        let current = Config.getSetting("bar", {});
+        current.workspaceGroupsPerMonitor = enabled;
         Config.setSetting("bar", current);
     }
 
@@ -1291,8 +1342,8 @@ Item {
                         rootObj: barModulesRoot.rootObj
                         baseColor: Qt.alpha(ThemeBackend.surface1, 0.35)
                         icon: "󰮯"
-                        title: I18n.t("guide.bar.workspaces.title")
-                        description: I18n.t("guide.bar.workspaces.desc")
+                        title: I18n.t("guide.bar.modules.workspaces.count.title", "Workspace count")
+                        description: I18n.t("guide.bar.modules.workspaces.count.desc", "How many workspaces the bar shows, and the block size each monitor gets when groups are on")
 
                         NumberSelector {
                             id: workspaceCountSelector
@@ -1342,6 +1393,84 @@ Item {
                             handleOffColor: ThemeBackend.text
                             onToggled: function(c) {
                                 barModulesRoot.setHideEmptyWorkspaces(c);
+                            }
+                        }
+                    }
+
+                    SettingsRow {
+                        rootObj: barModulesRoot.rootObj
+                        baseColor: Qt.alpha(ThemeBackend.surface1, 0.35)
+                        icon: "9"
+                        title: I18n.t("guide.bar.modules.workspaces.groups.title", "Workspace group per monitor")
+                        description: I18n.t("guide.bar.modules.workspaces.groups.desc", "Each bar shows its own monitor's block of workspaces (1-N, N+1-2N, ...)")
+                        searchKeywords: "workspaces groups monitor multi screen"
+
+                        Toggle {
+                            Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                            checked: barModulesRoot.workspaceGroupsPerMonitor
+                            accentColor: ThemeBackend.mauve
+                            baseColor: ThemeBackend.surface1
+                            handleColor: ThemeBackend.crust
+                            handleOffColor: ThemeBackend.text
+                            onToggled: function(c) {
+                                barModulesRoot.setWorkspaceGroupsPerMonitor(c);
+                            }
+                        }
+                    }
+
+                    SettingsRow {
+                        rootObj: barModulesRoot.rootObj
+                        baseColor: Qt.alpha(ThemeBackend.surface1, 0.35)
+                        icon: "5"
+                        title: I18n.t("guide.bar.modules.workspaces.display_follows.title", "Display same amount as workspace count")
+                        description: I18n.t("guide.bar.modules.workspaces.display_follows.desc", "Turn off to set how many workspaces each monitor shows")
+                        searchKeywords: "workspaces display count per monitor"
+
+                        Toggle {
+                            Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                            checked: barModulesRoot.workspaceDisplayFollowsCount
+                            accentColor: ThemeBackend.mauve
+                            baseColor: ThemeBackend.surface1
+                            handleColor: ThemeBackend.crust
+                            handleOffColor: ThemeBackend.text
+                            onToggled: function(c) {
+                                barModulesRoot.setDisplayFollowsCount(c);
+                            }
+                        }
+                    }
+
+                    Repeater {
+                        model: barModulesRoot.workspaceDisplayFollowsCount ? [] : barModulesRoot.connectedScreens
+                        delegate: SettingsRow {
+                            required property var modelData
+
+                            rootObj: barModulesRoot.rootObj
+                            baseColor: Qt.alpha(ThemeBackend.surface1, 0.2)
+                            searchable: false
+                            icon: "󰍹"
+                            title: modelData.name
+                            description: modelData.width + "x" + modelData.height
+
+                            NumberSelector {
+                                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                implicitWidth: rootObj.s(140)
+                                implicitHeight: rootObj.s(32)
+                                from: 2
+                                to: 10
+                                stepSize: 1
+                                decimals: 0
+                                value: barModulesRoot.displayCountFor(modelData.name)
+                                baseColor: ThemeBackend.surface0
+                                accentColor: ThemeBackend.mauve
+                                buttonColor: ThemeBackend.surface1
+                                buttonTextColor: ThemeBackend.text
+                                textColor: ThemeBackend.text
+                                subTextColor: ThemeBackend.subtext0
+                                borderColor: Qt.alpha(ThemeBackend.surface2, 0.6)
+                                cornerRadius: ThemeBackend.borderRadius
+                                fontFamily: ThemeBackend.fontFamily
+                                fontPixelSize: rootObj.s(12)
+                                onTriggered: barModulesRoot.setDisplayCountFor(modelData.name, Math.round(value))
                             }
                         }
                     }
