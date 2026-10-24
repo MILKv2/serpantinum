@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import Quickshell.Services.UPower
 import "../../"
 import "../../../"
@@ -27,6 +28,46 @@ GuideTab {
         let bs = Config.getSetting("bar", {});
         if (bs && bs.workspaceCount !== undefined) return bs.workspaceCount;
         return 8;
+    }
+
+    property bool workspaceGroupsPerMonitor: {
+        let bs = Config.getSetting("bar", {});
+        return !!(bs && bs.workspaceGroupsPerMonitor);
+    }
+
+    property bool workspaceDisplayFollowsCount: {
+        let bs = Config.getSetting("bar", {});
+        return !(bs && bs.workspaceDisplayFollowsCount === false);
+    }
+
+    property var workspaceDisplayPerMonitor: {
+        let bs = Config.getSetting("bar", {});
+        return (bs && bs.workspaceDisplayPerMonitor) ? bs.workspaceDisplayPerMonitor : ({});
+    }
+
+    readonly property var connectedScreens: Quickshell.screens ? Quickshell.screens : []
+
+    function displayCountFor(name) {
+        let v = barModulesRoot.workspaceDisplayPerMonitor[name];
+        if (v === undefined || v === null) return barModulesRoot.workspaceCount;
+        return Math.max(2, Math.min(10, v));
+    }
+
+    function setDisplayFollowsCount(enabled) {
+        barModulesRoot.workspaceDisplayFollowsCount = enabled;
+        let current = Config.getSetting("bar", {});
+        current.workspaceDisplayFollowsCount = enabled;
+        Config.setSetting("bar", current);
+    }
+
+    function setDisplayCountFor(name, count) {
+        let current = Config.getSetting("bar", {});
+        let map = current.workspaceDisplayPerMonitor ? current.workspaceDisplayPerMonitor : ({});
+        map[name] = count;
+        current.workspaceDisplayPerMonitor = map;
+        Config.setSetting("bar", current);
+        barModulesRoot.workspaceDisplayPerMonitor = map;
+        barModulesRoot.workspaceDisplayPerMonitorChanged();
     }
 
     property bool hideEmptyWorkspaces: {
@@ -253,6 +294,10 @@ GuideTab {
             barModulesRoot.hideEmptyWorkspaces = false;
         }
 
+        barModulesRoot.workspaceGroupsPerMonitor = !!(bs && bs.workspaceGroupsPerMonitor);
+        barModulesRoot.workspaceDisplayFollowsCount = !(bs && bs.workspaceDisplayFollowsCount === false);
+        barModulesRoot.workspaceDisplayPerMonitor = (bs && bs.workspaceDisplayPerMonitor) ? bs.workspaceDisplayPerMonitor : ({});
+
         if (bs && bs.timeStyle) {
             barModulesRoot.timeStyle = bs.timeStyle;
         } else {
@@ -441,6 +486,13 @@ GuideTab {
         barModulesRoot.workspaceCount = count;
         let current = Config.getSetting("bar", {});
         current.workspaceCount = count;
+        Config.setSetting("bar", current);
+    }
+
+    function setWorkspaceGroupsPerMonitor(enabled) {
+        barModulesRoot.workspaceGroupsPerMonitor = enabled;
+        let current = Config.getSetting("bar", {});
+        current.workspaceGroupsPerMonitor = enabled;
         Config.setSetting("bar", current);
     }
 
